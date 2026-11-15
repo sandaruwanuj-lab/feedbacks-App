@@ -1,0 +1,6 @@
+{
+  "name": "FeedbackHub - Session Feedback & Analytics",
+  "description": "Bilingual English and Sinhala session feedback collection and real-time analytics dashboard with PDF reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

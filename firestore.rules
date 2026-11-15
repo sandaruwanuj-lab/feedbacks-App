@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'ujithaekanayake@gmail.com';
+    }
+
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['type', 'sessionName', 'learningPoints', 'suggestions', 'userId', 'timestamp'])
+        && data.keys().hasOnly(['type', 'sessionName', 'learningPoints', 'suggestions', 'userId', 'timestamp'])
+        && data.type in ['good', 'average', 'poor']
+        && data.sessionName is string && data.sessionName.size() >= 1 && data.sessionName.size() <= 120
+        && data.learningPoints is string && data.learningPoints.size() <= 2000
+        && data.suggestions is string && data.suggestions.size() <= 2000
+        && data.userId is string && isValidId(data.userId) && data.userId == request.auth.uid
+        && data.timestamp is timestamp && data.timestamp == request.time;
+    }
+
+    match /feedbacks/{feedbackId} {
+      allow get: if isValidId(feedbackId) && (isAdmin() || (isVerifiedUser() && existing().userId == request.auth.uid));
+      allow list: if isAdmin() || (isVerifiedUser() && resource.data.userId == request.auth.uid);
+      allow create: if isVerifiedUser() && isValidId(feedbackId) && isValidFeedback(incoming());
+      allow update: if false;
+      allow delete: if isValidId(feedbackId) && (isAdmin() || (isVerifiedUser() && existing().userId == request.auth.uid));
+    }
+  }
+}

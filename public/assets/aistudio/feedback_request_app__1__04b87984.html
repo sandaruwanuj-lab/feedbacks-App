@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback Request App</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js for Dashboard Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- html2pdf for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Sinhala:wght@400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Inter', 'Noto Sans Sinhala', sans-serif;
+            background-color: #cce6f4;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .view-hidden { display: none !important; }
+        
+        /* 3D Interactive Feedback Buttons */
+        .feedback-btn {
+            border: 12px solid #e2e8f0;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3), inset 0 -10px 20px rgba(0,0,0,0.2);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            border-radius: 9999px;
+            width: 11rem;
+            height: 11rem;
+            outline: none;
+            cursor: pointer;
+        }
+        
+        @media (min-width: 640px) {
+            .feedback-btn {
+                width: 13rem;
+                height: 13rem;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .feedback-btn {
+                width: 15rem;
+                height: 15rem;
+            }
+        }
+
+        .feedback-btn:hover { 
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 0 25px 30px -5px rgba(0,0,0,0.35), inset 0 -10px 20px rgba(0,0,0,0.2);
+        }
+        .feedback-btn:active { 
+            transform: translateY(2px) scale(0.96); 
+        }
+        .feedback-btn:disabled { 
+            opacity: 0.5; 
+            transform: none; 
+            cursor: not-allowed; 
+        }
+        
+        .btn-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top right, transparent, rgba(255,255,255,0.4), rgba(255,255,255,0.75));
+            opacity: 0.6;
+            border-radius: 9999px;
+            pointer-events: none;
+        }
+
+        .btn-content {
+            position: absolute;
+            inset: 1rem;
+            pointer-events: none;
+        }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        .toast-enter { animation: slideDown 0.3s ease-out forwards; }
+        
+        /* PDF Export Strict Page Break Controls */
+        .break-avoid {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="view-hidden fixed top-5 right-5 bg-slate-900 text-white px-6 py-3.5 rounded-xl shadow-2xl z-50 flex items-center gap-3 border border-slate-700">
+        <svg class="w-5 h-5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <span id="toast-msg" class="font-medium text-sm"></span>
+    </div>
+
+    <!-- Top Navigation Header -->
+    <header class="no-print w-full bg-white/90 backdrop-blur-md shadow-sm border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex justify-between items-center sticky top-0 z-40">
+        <div class="font-extrabold text-xl text-slate-800 flex items-center gap-2.5">
+            <span class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-lg shadow-md shadow-blue-500/20">F</span>
+            <span>Feedback<span class="text-blue-600">Hub</span></span>
+        </div>
+        <div class="flex gap-2 sm:gap-3">
+            <button id="nav-submit" class="nav-btn px-4 py-2 rounded-xl text-sm font-bold transition-all bg-blue-600 text-white shadow-md hover:bg-blue-700 active:scale-95 flex flex-col items-center leading-tight">
+                <span>Submit Feedback</span>
+                <span class="text-[10px] opacity-90 font-medium mt-0.5">ප්‍රතිපෝෂණ ලබා දෙන්න</span>
+            </button>
+            <button id="nav-dashboard" class="nav-btn px-4 py-2 rounded-xl text-sm font-bold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 flex flex-col items-center leading-tight">
+                <span>View Dashboard</span>
+                <span class="text-[10px] opacity-70 font-medium mt-0.5">දත්ත පුවරුව</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 w-full max-w-7xl mx-auto px-4 py-6 sm:py-10 flex flex-col items-center justify-center">
+        
+        <!-- ================= VIEW 1: Submit Feedback ================= -->
+        <div id="view-submit" class="w-full flex flex-col items-center justify-center animate-fade-in gap-8 sm:gap-10">
+            
+            <!-- Session Banner & Share Section -->
+            <div id="session-control-panel" class="w-full max-w-xl bg-white p-5 sm:p-6 rounded-2xl shadow-lg border border-slate-100 flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <label for="session-name-input" class="text-xs uppercase font-extrabold text-slate-500 tracking-wider flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                        </svg>
+                        Session Name / සැසියේ නම
+                    </label>
+                    <span id="session-badge" class="text-xs bg-blue-50 text-blue-600 font-semibold px-2.5 py-0.5 rounded-full border border-blue-100">
+                        Active Session
+                    </span>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-2.5">
+                    <input 
+                        type="text" 
+                        id="session-name-input" 
+                        value="General Session" 
+                        placeholder="Enter session name / සැසියේ නම ඇතුලත් කරන්න" 
+                        class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                    />
+                    <button 
+                        id="btn-share-link" 
+                        title="Copy shareable link for this session"
+                        class="flex flex-col items-center justify-center bg-slate-800 hover:bg-slate-900 active:bg-black text-white px-4 py-1.5 rounded-xl text-sm font-semibold transition-all shadow-sm flex-shrink-0 leading-tight"
+                    >
+                        <div class="flex items-center gap-1.5">
+                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path>
+                            </svg>
+                            <span>Share Link</span>
+                        </div>
+                        <span class="text-[10px] font-medium text-slate-300 mt-0.5">සබැඳිය බෙදාගන්න</span>
+                    </button>
+                </div>
+                <p class="text-xs text-slate-400 flex items-center gap-1">
+                    <span>💡 Tip:</span> Share this session link with attendees so their feedback is grouped automatically.
+                </p>
+            </div>
+
+            <!-- Header Title -->
+            <div class="text-center flex flex-col items-center gap-2">
+                <h1 class="text-4xl sm:text-5xl font-black text-[#1e3a5f] tracking-tight leading-tight">
+                    Feedback Request <br>
+                    <span class="text-3xl sm:text-4xl text-[#2a4d7a]">ප්‍රතිපෝෂණ ඉල්ලීම</span>
+                    <span class="inline-block animate-bounce ml-1 text-3xl sm:text-5xl">💬</span>
+                </h1>
+                <p class="text-base sm:text-xl text-[#4a6b8c] font-medium mt-2">
+                    How was your experience in this session? <br>
+                    <span class="text-sm sm:text-lg">මෙම සැසියේ ඔබගේ අත්දැකීම කෙසේද?</span>
+                </p>
+            </div>
+
+            <!-- Additional Feedback Fields -->
+            <div class="w-full max-w-2xl flex flex-col gap-5 mt-2">
+                <div class="flex flex-col gap-1.5">
+                    <label for="input-learning" class="text-sm font-bold text-slate-700">
+                        Session Learning Points <span class="text-slate-500 font-medium">/ සැසියේදී ඉගෙන ගත් කරුණු</span>
+                    </label>
+                    <textarea id="input-learning" rows="2" placeholder="What were your main takeaways? / ඔබගේ ප්‍රධාන ඉගෙනුම් කරුණු මොනවාද?" class="px-4 py-3 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y text-sm transition-all shadow-sm"></textarea>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <label for="input-suggestions" class="text-sm font-bold text-slate-700">
+                        Suggestions for Improvement <span class="text-slate-500 font-medium">/ වැඩිදියුණු කිරීම සඳහා යෝජනා</span>
+                    </label>
+                    <textarea id="input-suggestions" rows="2" placeholder="How can we make this session better? / මෙම සැසිය වඩාත් හොඳ කරන්නේ කෙසේද?" class="px-4 py-3 rounded-xl border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y text-sm transition-all shadow-sm"></textarea>
+                </div>
+            </div>
+
+            <!-- Feedback Buttons -->
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10 md:gap-14 w-full mt-2">
+                
+                <!-- Good Button -->
+                <div class="flex flex-col items-center gap-3">
+                    <button id="btn-good" class="feedback-btn bg-gradient-to-br from-[#98d41e] to-[#6da510] focus:ring-4 focus:ring-green-400">
+                        <div class="btn-overlay"></div>
+                        <div class="btn-content">
+                            <!-- Wow Face SVG -->
+                            <svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-md">
+                                <path d="M 35 25 L 38 33 L 47 33 L 40 39 L 43 48 L 35 42 L 27 48 L 30 39 L 23 33 L 32 33 Z" fill="#224400" />
+                                <path d="M 65 25 L 68 33 L 77 33 L 70 39 L 73 48 L 65 42 L 57 48 L 60 39 L 53 33 L 62 33 Z" fill="#224400" />
+                                <path d="M 25 58 C 25 95, 75 95, 75 58 Z" fill="#224400" />
+                            </svg>
+                        </div>
+                    </button>
+                    <div class="text-center font-bold text-slate-700 text-lg">
+                        Great <br><span class="text-sm text-slate-500 font-medium">හොඳයි</span>
+                    </div>
+                </div>
+
+                <!-- Average Button -->
+                <div class="flex flex-col items-center gap-3">
+                    <button id="btn-average" class="feedback-btn bg-gradient-to-br from-[#fde01b] to-[#d6b710] focus:ring-4 focus:ring-yellow-400">
+                        <div class="btn-overlay"></div>
+                        <div class="btn-content">
+                            <!-- Neutral / Okay Face SVG -->
+                            <svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-md">
+                                <ellipse cx="36" cy="36" rx="6.5" ry="10" fill="#18181b" />
+                                <ellipse cx="64" cy="36" rx="6.5" ry="10" fill="#18181b" />
+                                <path d="M 21 57 Q 50 78 79 57" stroke="#18181b" stroke-width="7.5" fill="none" stroke-linecap="round" />
+                            </svg>
+                        </div>
+                    </button>
+                    <div class="text-center font-bold text-slate-700 text-lg">
+                        Average <br><span class="text-sm text-slate-500 font-medium">සාමාන්‍යයි</span>
+                    </div>
+                </div>
+
+                <!-- Poor Button -->
+                <div class="flex flex-col items-center gap-3">
+                    <button id="btn-poor" class="feedback-btn bg-gradient-to-br from-[#f51a16] to-[#c50e0a] focus:ring-4 focus:ring-red-400">
+                        <div class="btn-overlay"></div>
+                        <div class="btn-content">
+                            <!-- Sad Face SVG -->
+                            <svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-md">
+                                <circle cx="35" cy="45" r="6" fill="#440000" />
+                                <circle cx="65" cy="45" r="6" fill="#440000" />
+                                <path d="M 25 75 Q 50 55 75 75" stroke="#440000" stroke-width="8" fill="none" stroke-linecap="round" />
+                            </svg>
+                        </div>
+                    </button>
+                    <div class="text-center font-bold text-slate-700 text-lg">
+                        Poor <br><span class="text-sm text-slate-500 font-medium">දුර්වලයි</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= VIEW 2: Dashboard Trends & Filter ================= -->
+        <div id="view-dashboard" class="view-hidden w-full max-w-6xl flex flex-col gap-6 animate-fade-in">
+            
+            <!-- Control Header Bar (Filter & PDF Download) -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200/70 gap-4">
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-800">
+                        Dashboard & Analytics <br>
+                        <span class="text-lg text-slate-500 font-bold">දත්ත පුවරුව සහ විශ්ලේෂණ</span>
+                    </h1>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                    <!-- Session Filter Dropdown -->
+                    <div class="flex flex-col gap-1">
+                        <label for="session-filter" class="text-[11px] font-bold text-slate-400 uppercase tracking-wider no-print">
+                            Filter Session / සැසිය තෝරන්න
+                        </label>
+                        <select 
+                            id="session-filter" 
+                            class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all cursor-pointer"
+                        >
+                            <option value="ALL">All Sessions / සියලුම සැසි</option>
+                        </select>
+                    </div>
+
+                    <!-- Download PDF Button -->
+                    <button 
+                        id="btn-download-pdf" 
+                        class="no-print mt-auto flex flex-col items-center justify-center bg-slate-900 hover:bg-black text-white px-5 py-1.5 rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 leading-tight"
+                    >
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span>Download PDF Report</span>
+                        </div>
+                        <span class="text-[10px] text-slate-300 font-medium mt-0.5">PDF වාර්තාව බාගන්න</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- PDF Container Element -->
+            <div id="dashboard-content" class="flex flex-col gap-6 p-6 sm:p-8 bg-slate-50 rounded-2xl border border-slate-200/60 shadow-inner">
+                
+                <!-- Report Header (Included prominently in PDF export) -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 break-avoid">
+                    <div>
+                        <span class="text-xs font-black uppercase text-blue-600 tracking-wider">Official Feedback Report</span>
+                        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-800 mt-0.5">
+                            Report Session: <span id="report-session-name" class="text-blue-600 underline decoration-blue-200 underline-offset-4">All Sessions</span>
+                        </h2>
+                    </div>
+                    <div class="text-left sm:text-right text-xs text-slate-500 font-medium">
+                        <div>Generated on: <span id="report-date-str" class="font-bold text-slate-700"></span></div>
+                        <div class="mt-0.5 text-slate-400">Feedback Hub Analytics</div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                    <!-- Total Responses Card -->
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-b-4 border-b-blue-500 flex flex-col items-center justify-center break-avoid text-center">
+                        <span class="text-slate-500 font-semibold mb-1 text-sm leading-tight">Total Responses<br><span class="text-xs">මුළු ප්‍රතිචාර</span></span>
+                        <span id="stat-total" class="text-4xl font-black text-slate-800">0</span>
+                    </div>
+
+                    <!-- Good Card -->
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-b-4 border-b-[#84cc16] flex flex-col items-center justify-center break-avoid text-center">
+                        <span class="text-slate-500 font-semibold mb-1 text-sm leading-tight">Great<br><span class="text-xs">හොඳයි</span></span>
+                        <div class="flex items-baseline gap-2">
+                            <span id="stat-good" class="text-4xl font-black text-[#6da510]">0</span>
+                            <span id="stat-good-pct" class="text-base font-bold text-slate-400">(0%)</span>
+                        </div>
+                    </div>
+
+                    <!-- Average Card -->
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-b-4 border-b-[#eab308] flex flex-col items-center justify-center break-avoid text-center">
+                        <span class="text-slate-500 font-semibold mb-1 text-sm leading-tight">Average<br><span class="text-xs">සාමාන්‍යයි</span></span>
+                        <div class="flex items-baseline gap-2">
+                            <span id="stat-average" class="text-4xl font-black text-[#d6b710]">0</span>
+                            <span id="stat-average-pct" class="text-base font-bold text-slate-400">(0%)</span>
+                        </div>
+                    </div>
+
+                    <!-- Poor Card -->
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 border-b-4 border-b-[#ef4444] flex flex-col items-center justify-center break-avoid text-center">
+                        <span class="text-slate-500 font-semibold mb-1 text-sm leading-tight">Poor<br><span class="text-xs">දුර්වලයි</span></span>
+                        <div class="flex items-baseline gap-2">
+                            <span id="stat-poor" class="text-4xl font-black text-[#c50e0a]">0</span>
+                            <span id="stat-poor-pct" class="text-base font-bold text-slate-400">(0%)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2 charts-grid">
+                    <!-- Bar Chart Card -->
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60 h-[280px] flex flex-col chart-card break-avoid">
+                        <h3 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                            Distribution Count / ව්‍යාප්ති ගණන
+                        </h3>
+                        <div class="relative w-full flex-1 min-h-[180px] flex items-center justify-center">
+                             <canvas id="barChart"></canvas>
+                             <div id="bar-empty" class="absolute inset-0 flex items-center justify-center text-slate-400 font-medium text-sm bg-white/90">No feedback submitted yet</div>
+                        </div>
+                    </div>
+
+                    <!-- Doughnut Chart Card -->
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200/60 h-[280px] flex flex-col chart-card break-avoid">
+                        <h3 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path>
+                            </svg>
+                            Proportion Breakdown / ප්‍රතිශතය
+                        </h3>
+                        <div class="relative w-full flex-1 min-h-[180px] flex items-center justify-center">
+                             <canvas id="pieChart"></canvas>
+                             <div id="pie-empty" class="absolute inset-0 flex items-center justify-center text-slate-400 font-medium text-sm bg-white/90">No feedback submitted yet</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Feedback Activity Summary -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 mt-2 log-card break-avoid">
+                    <h3 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Session Log Breakdown / සැසි සාරාංශය
+                    </h3>
+                    <div id="session-log-container" class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-600">
+                            <thead class="bg-slate-50 uppercase font-bold text-slate-500 border-b border-slate-200">
+                                <tr>
+                                    <th class="py-2.5 px-4">Session Name <br><span class="text-[10px] font-medium lowercase capitalize">සැසියේ නම</span></th>
+                                    <th class="py-2.5 px-4">Rating <br><span class="text-[10px] font-medium lowercase capitalize">ශ්‍රේණිගත කිරීම</span></th>
+                                    <th class="py-2.5 px-4 text-right">Time Recorded <br><span class="text-[10px] font-medium lowercase capitalize">වේලාව</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="session-log-tbody" class="divide-y divide-slate-100 font-medium">
+                                <tr>
+                                    <td colspan="3" class="py-4 text-center text-slate-400">No records to display.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Detailed Responses Table -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/60 mt-2 break-avoid">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Detailed Responses / සවිස්තරාත්මක ප්‍රතිචාර
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-slate-600">
+                            <thead class="bg-slate-50 uppercase text-xs font-bold text-slate-500 border-b border-slate-200">
+                                <tr>
+                                    <th class="py-3 px-4 min-w-[120px]">Session<br><span class="text-[10px] font-medium lowercase capitalize">සැසිය</span></th>
+                                    <th class="py-3 px-4 min-w-[100px]">Date<br><span class="text-[10px] font-medium lowercase capitalize">දිනය</span></th>
+                                    <th class="py-3 px-4 min-w-[90px]">Rating<br><span class="text-[10px] font-medium lowercase capitalize">ශ්‍රේණිගත කිරීම</span></th>
+                                    <th class="py-3 px-4 min-w-[180px]">Learning Points<br><span class="text-[10px] font-medium lowercase capitalize">ඉගෙන ගත් කරුණු</span></th>
+                                    <th class="py-3 px-4 min-w-[180px]">Suggestions<br><span class="text-[10px] font-medium lowercase capitalize">යෝජනා</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="detailed-responses-tbody" class="divide-y divide-slate-100">
+                                <tr>
+                                    <td colspan="5" class="py-6 text-center text-slate-400 font-medium">No detailed responses to display.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Application Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- State Variables ---
+        let currentUser = null;
+        let isSubmitting = false;
+        let feedbacks = [];
+        let barChartInstance = null;
+        let pieChartInstance = null;
+        let selectedSessionFilter = 'ALL';
+        let activeSessionFromUrl = null;
+
+        // --- DOM Elements ---
+        const viewSubmit = document.getElementById('view-submit');
+        const viewDashboard = document.getElementById('view-dashboard');
+        const navSubmit = document.getElementById('nav-submit');
+        const navDashboard = document.getElementById('nav-dashboard');
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toast-msg');
+        
+        const sessionInput = document.getElementById('session-name-input');
+        const btnShareLink = document.getElementById('btn-share-link');
+        const btnGood = document.getElementById('btn-good');
+        const btnAverage = document.getElementById('btn-average');
+        const btnPoor = document.getElementById('btn-poor');
+        const sessionControlPanel = document.getElementById('session-control-panel');
+        
+        const inputLearning = document.getElementById('input-learning');
+        const inputSuggestions = document.getElementById('input-suggestions');
+        
+        const sessionFilterSelect = document.getElementById('session-filter');
+        const btnDownloadPdf = document.getElementById('btn-download-pdf');
+        const reportSessionName = document.getElementById('report-session-name');
+        const reportDateStr = document.getElementById('report-date-str');
+        const sessionLogTbody = document.getElementById('session-log-tbody');
+        const detailedResponsesTbody = document.getElementById('detailed-responses-tbody');
+
+        // Set initial report date text
+        reportDateStr.textContent = new Date().toLocaleDateString(undefined, { 
+            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+        });
+
+        // --- Parse URL Parameters for Session Pre-fill ---
+        function initSessionFromURL() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const sessionParam = urlParams.get('session');
+                if (sessionParam && sessionParam.trim() !== '') {
+                    activeSessionFromUrl = sessionParam.trim();
+                    sessionInput.value = activeSessionFromUrl;
+                    if (sessionControlPanel) {
+                        sessionControlPanel.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                console.error("Error reading URL parameter:", e);
+            }
+        }
+        initSessionFromURL();
+
+        // --- Clipboard Copy Helper (Handles iframe restrictions safely) ---
+        function copyToClipboard(textToCopy) {
+            let copied = false;
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    showToast("Share link copied to clipboard!");
+                }).catch(() => {
+                    fallbackCopy(textToCopy);
+                });
+            } else {
+                fallbackCopy(textToCopy);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "0";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast("Share link copied to clipboard!");
+            } catch (err) {
+                showToast("Unable to copy link automatically.");
+            }
+            document.body.removeChild(textArea);
+        }
+
+        // --- Share Link Event ---
+        btnShareLink.addEventListener('click', () => {
+            const currentSession = sessionInput.value.trim() || 'General Session';
+            // Use exact origin + pathname to prevent 404 routing errors on static hosts
+            const shareUrl = window.location.origin + window.location.pathname + '?session=' + encodeURIComponent(currentSession);
+            copyToClipboard(shareUrl);
+        });
+
+        // --- View Navigation ---
+        function switchView(view) {
+            if (view === 'submit') {
+                viewSubmit.classList.remove('view-hidden');
+                viewDashboard.classList.add('view-hidden');
+                
+                navSubmit.className = 'nav-btn px-4 py-2 rounded-xl text-sm font-bold transition-all bg-blue-600 text-white shadow-md hover:bg-blue-700 active:scale-95 flex flex-col items-center leading-tight';
+                navDashboard.className = 'nav-btn px-4 py-2 rounded-xl text-sm font-bold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 flex flex-col items-center leading-tight';
+            } else {
+                viewSubmit.classList.add('view-hidden');
+                viewDashboard.classList.remove('view-hidden');
+                
+                navSubmit.className = 'nav-btn px-4 py-2 rounded-xl text-sm font-bold transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 flex flex-col items-center leading-tight';
+                navDashboard.className = 'nav-btn px-4 py-2 rounded-xl text-sm font-bold transition-all bg-blue-600 text-white shadow-md hover:bg-blue-700 active:scale-95 flex flex-col items-center leading-tight';
+                
+                updateDashboardData();
+            }
+        }
+
+        navSubmit.addEventListener('click', () => switchView('submit'));
+        navDashboard.addEventListener('click', () => switchView('dashboard'));
+
+        function showToast(message) {
+            toastMsg.textContent = message;
+            toast.classList.remove('view-hidden');
+            toast.classList.add('toast-enter');
+            setTimeout(() => {
+                toast.classList.add('view-hidden');
+                toast.classList.remove('toast-enter');
+            }, 3200);
+        }
+
+        // --- Firebase Firestore Initialization ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'feedback-app-default';
+        let db;
+        let feedbackRef;
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            db = getFirestore(app);
+            
+            // Public path standard rule: /artifacts/{appId}/public/data/{collectionName}
+            feedbackRef = collection(db, 'artifacts', appId, 'public', 'data', 'feedbacks');
+
+            const initAuth = async () => {
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (error) {
+                    console.error("Auth initialization error:", error);
+                }
+            };
+            
+            initAuth();
+            
+            onAuthStateChanged(auth, (user) => {
+                currentUser = user;
+                if (user) {
+                    setupRealtimeListener();
+                }
+            });
+        } catch(e) {
+            console.warn("Firebase running in offline/demo fallback mode:", e);
+            // Default mock records if Firebase is unavailable
+            feedbacks = [
+                { id: '1', type: 'good', sessionName: 'General Session', timestamp: null },
+                { id: '2', type: 'good', sessionName: 'Q3 All Hands', timestamp: null },
+                { id: '3', type: 'average', sessionName: 'Q3 All Hands', timestamp: null },
+                { id: '4', type: 'poor', sessionName: 'General Session', timestamp: null }
+            ];
+            updateDashboardData();
+        }
+
+        // Realtime Firestore listener (No compound queries, simple collection read)
+        function setupRealtimeListener() {
+            if (!feedbackRef) return;
+            onSnapshot(feedbackRef, (snapshot) => {
+                feedbacks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                populateSessionFilterDropdown();
+                updateDashboardData();
+            }, (error) => {
+                console.error("Firestore realtime listener error:", error);
+            });
+        }
+
+        // Dynamically populate session filter dropdown options based on unique sessions
+        function populateSessionFilterDropdown() {
+            const currentSelection = sessionFilterSelect.value;
+            const uniqueSessions = new Set();
+            
+            feedbacks.forEach(f => {
+                const sName = (f.sessionName && f.sessionName.trim() !== '') ? f.sessionName.trim() : 'General Session';
+                uniqueSessions.add(sName);
+            });
+
+            // Preserve selection
+            sessionFilterSelect.innerHTML = '<option value="ALL">All Sessions / සියලුම සැසි</option>';
+            
+            Array.from(uniqueSessions).sort().forEach(sessionName => {
+                const opt = document.createElement('option');
+                opt.value = sessionName;
+                opt.textContent = sessionName;
+                if (sessionName === currentSelection) {
+                    opt.selected = true;
+                }
+                sessionFilterSelect.appendChild(opt);
+            });
+            
+            selectedSessionFilter = sessionFilterSelect.value;
+        }
+
+        // Handle filter selection change
+        sessionFilterSelect.addEventListener('change', (e) => {
+            selectedSessionFilter = e.target.value;
+            updateDashboardData();
+        });
+
+        // --- Feedback Submission Handler ---
+        async function handleFeedbackSubmit(type) {
+            if (isSubmitting) return;
+            
+            const sessionNameVal = activeSessionFromUrl || sessionInput.value.trim() || 'General Session';
+            const learningPointsVal = inputLearning.value.trim();
+            const suggestionsVal = inputSuggestions.value.trim();
+            
+            isSubmitting = true;
+            [btnGood, btnAverage, btnPoor].forEach(btn => btn.disabled = true);
+            
+            try {
+                if (currentUser && feedbackRef) {
+                    await addDoc(feedbackRef, {
+                        type: type,
+                        sessionName: sessionNameVal,
+                        learningPoints: learningPointsVal,
+                        suggestions: suggestionsVal,
+                        timestamp: serverTimestamp(),
+                        userId: currentUser.uid
+                    });
+                } else {
+                    // Fallback local insert
+                    feedbacks.push({ 
+                        id: Date.now().toString(),
+                        type: type, 
+                        sessionName: sessionNameVal,
+                        learningPoints: learningPointsVal,
+                        suggestions: suggestionsVal,
+                        timestamp: null 
+                    });
+                    populateSessionFilterDropdown();
+                    updateDashboardData();
+                }
+                
+                // Clear fields on success
+                inputLearning.value = '';
+                inputSuggestions.value = '';
+                
+                showToast(`Feedback saved for "${sessionNameVal}"! Thank you.`);
+            } catch (error) {
+                console.error("Submission error:", error);
+                showToast("Failed to submit feedback. Please try again.");
+            } finally {
+                isSubmitting = false;
+                [btnGood, btnAverage, btnPoor].forEach(btn => btn.disabled = false);
+            }
+        }
+
+        btnGood.addEventListener('click', () => handleFeedbackSubmit('good'));
+        btnAverage.addEventListener('click', () => handleFeedbackSubmit('average'));
+        btnPoor.addEventListener('click', () => handleFeedbackSubmit('poor'));
+
+        // --- Dashboard Data & Chart Rendering ---
+        function getFilteredFeedbacks() {
+            if (selectedSessionFilter === 'ALL') {
+                return feedbacks;
+            }
+            return feedbacks.filter(f => {
+                const sName = (f.sessionName && f.sessionName.trim() !== '') ? f.sessionName.trim() : 'General Session';
+                return sName === selectedSessionFilter;
+            });
+        }
+
+        function calculateCounts(filteredList) {
+            const good = filteredList.filter(f => f.type === 'good').length;
+            const average = filteredList.filter(f => f.type === 'average').length;
+            const poor = filteredList.filter(f => f.type === 'poor').length;
+            return { total: filteredList.length, good, average, poor };
+        }
+
+        function updateDashboardData() {
+            const filteredList = getFilteredFeedbacks();
+            const counts = calculateCounts(filteredList);
+            const total = counts.total;
+            const getPct = (val) => total > 0 ? Math.round((val / total) * 100) + '%' : '0%';
+
+            // Update Report Title Badge
+            reportSessionName.textContent = selectedSessionFilter === 'ALL' ? 'All Sessions' : selectedSessionFilter;
+
+            // Update Statistics Cards
+            document.getElementById('stat-total').textContent = total;
+            
+            document.getElementById('stat-good').textContent = counts.good;
+            document.getElementById('stat-good-pct').textContent = `(${getPct(counts.good)})`;
+            
+            document.getElementById('stat-average').textContent = counts.average;
+            document.getElementById('stat-average-pct').textContent = `(${getPct(counts.average)})`;
+            
+            document.getElementById('stat-poor').textContent = counts.poor;
+            document.getElementById('stat-poor-pct').textContent = `(${getPct(counts.poor)})`;
+
+            // Update Session Log Table
+            renderSessionLogTable(filteredList);
+
+            // Update Detailed Responses Table
+            renderDetailedResponsesTable(filteredList);
+
+            // Render Charts
+            renderCharts(counts);
+        }
+
+        function renderSessionLogTable(filteredList) {
+            if (!filteredList || filteredList.length === 0) {
+                sessionLogTbody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-400">No records to display.</td></tr>`;
+                return;
+            }
+
+            // Display latest records first (up to 5 to ensure perfect fit on single 16:9 PDF page)
+            const recent = [...filteredList].reverse().slice(0, 5);
+            sessionLogTbody.innerHTML = recent.map(item => {
+                const sName = item.sessionName || 'General Session';
+                let ratingBadge = '';
+                if (item.type === 'good') ratingBadge = `<span class="bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded">Great / හොඳයි</span>`;
+                else if (item.type === 'average') ratingBadge = `<span class="bg-yellow-100 text-yellow-700 font-bold px-2 py-0.5 rounded">Average / සාමාන්‍යයි</span>`;
+                else ratingBadge = `<span class="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded">Poor / දුර්වලයි</span>`;
+
+                let timeStr = 'Just now';
+                if (item.timestamp && item.timestamp.toDate) {
+                    timeStr = item.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                }
+
+                return `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="py-2.5 px-4 font-semibold text-slate-800">${sName}</td>
+                        <td class="py-2.5 px-4">${ratingBadge}</td>
+                        <td class="py-2.5 px-4 text-right text-slate-400">${timeStr}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        function escapeHtml(unsafe) {
+            return (unsafe || "").toString()
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+
+        function renderDetailedResponsesTable(filteredList) {
+            if (!filteredList || filteredList.length === 0) {
+                detailedResponsesTbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 font-medium">No detailed responses to display.</td></tr>`;
+                return;
+            }
+
+            // Sort by latest first
+            const sortedList = [...filteredList].sort((a, b) => {
+                const tA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 0;
+                const tB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 0;
+                return tB - tA;
+            });
+
+            detailedResponsesTbody.innerHTML = sortedList.map(item => {
+                const sName = item.sessionName || 'General Session';
+                let ratingBadge = '';
+                if (item.type === 'good') ratingBadge = `<span class="bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded text-xs">Great / හොඳයි</span>`;
+                else if (item.type === 'average') ratingBadge = `<span class="bg-yellow-100 text-yellow-700 font-bold px-2 py-0.5 rounded text-xs">Average / සාමාන්‍යයි</span>`;
+                else ratingBadge = `<span class="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded text-xs">Poor / දුර්වලයි</span>`;
+
+                let dateStr = 'Just now';
+                if (item.timestamp && item.timestamp.toDate) {
+                    dateStr = item.timestamp.toDate().toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+
+                const learning = item.learningPoints ? escapeHtml(item.learningPoints) : '<span class="text-slate-300 italic">None</span>';
+                const suggestions = item.suggestions ? escapeHtml(item.suggestions) : '<span class="text-slate-300 italic">None</span>';
+
+                // Inline break-inside avoid to ensure PDF export does not split rows
+                return `
+                    <tr class="hover:bg-slate-50 transition-colors" style="page-break-inside: avoid; break-inside: avoid;">
+                        <td class="py-3 px-4 font-semibold text-slate-800 align-top">${escapeHtml(sName)}</td>
+                        <td class="py-3 px-4 text-slate-500 whitespace-nowrap text-xs align-top">${dateStr}</td>
+                        <td class="py-3 px-4 align-top">${ratingBadge}</td>
+                        <td class="py-3 px-4 text-slate-700 whitespace-pre-wrap align-top text-sm min-w-[150px]">${learning}</td>
+                        <td class="py-3 px-4 text-slate-700 whitespace-pre-wrap align-top text-sm min-w-[150px]">${suggestions}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderCharts(counts) {
+            const hasData = counts.total > 0;
+            
+            document.getElementById('bar-empty').style.display = hasData ? 'none' : 'flex';
+            document.getElementById('pie-empty').style.display = hasData ? 'none' : 'flex';
+
+            if (!hasData) {
+                if (barChartInstance) barChartInstance.destroy();
+                if (pieChartInstance) pieChartInstance.destroy();
+                return;
+            }
+
+            Chart.defaults.font.family = "'Inter', sans-serif";
+            Chart.defaults.color = '#64748b';
+
+            // --- Bar Chart ---
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            if (barChartInstance) barChartInstance.destroy();
+            
+            barChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Great (හොඳයි)', 'Average (සාමාන්‍යයි)', 'Poor (දුර්වලයි)'],
+                    datasets: [{
+                        label: 'Feedback Count',
+                        data: [counts.good, counts.average, counts.poor],
+                        backgroundColor: ['#84cc16', '#eab308', '#ef4444'],
+                        borderRadius: 8,
+                        maxBarThickness: 50
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { cornerRadius: 8, padding: 10 }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            // --- Pie / Doughnut Chart ---
+            const pieCtx = document.getElementById('pieChart').getContext('2d');
+            if (pieChartInstance) pieChartInstance.destroy();
+            
+            pieChartInstance = new Chart(pieCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Great (හොඳයි)', 'Average (සාමාන්‍යයි)', 'Poor (දුර්වලයි)'],
+                    datasets: [{
+                        data: [counts.good, counts.average, counts.poor],
+                        backgroundColor: ['#84cc16', '#eab308', '#ef4444'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) label += ': ';
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = total > 0 ? Math.round((value / total) * 100) + '%' : '0%';
+                                    return label + value + ' (' + pct + ')';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- PDF Generation with Session Name Included ---
+        btnDownloadPdf.addEventListener('click', () => {
+            if (typeof window.html2pdf === 'undefined') {
+                showToast("PDF generator is initializing, please try again in a moment.");
+                return;
+            }
+            
+            const currentFilterName = selectedSessionFilter === 'ALL' ? 'All-Sessions' : selectedSessionFilter.replace(/[^a-z0-9]/gi, '_');
+            const sanitizedFileName = `Feedback_Report_${currentFilterName}.pdf`;
+            
+            btnDownloadPdf.textContent = 'Generating PDF...';
+            btnDownloadPdf.disabled = true;
+            
+            const element = document.getElementById('dashboard-content');
+            
+            // Resize charts to fit standard widths
+            if (barChartInstance) barChartInstance.resize();
+            if (pieChartInstance) pieChartInstance.resize();
+            
+            const opt = {
+                margin:       0.5, 
+                filename:     sanitizedFileName,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    windowWidth: 1200
+                },
+                jsPDF:        { 
+                    unit: 'in', 
+                    format: 'letter',
+                    orientation: 'landscape' 
+                },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+
+            // Small delay permits the DOM & Canvas to fully reflow before drawing
+            setTimeout(() => {
+                window.html2pdf().set(opt).from(element).save().then(() => {
+                    btnDownloadPdf.textContent = 'Download PDF Report';
+                    btnDownloadPdf.disabled = false;
+                    showToast("PDF report downloaded successfully!");
+                }).catch(err => {
+                    console.error("PDF generation error:", err);
+                    btnDownloadPdf.textContent = 'Download PDF Report';
+                    btnDownloadPdf.disabled = false;
+                    showToast("Failed to generate PDF report.");
+                });
+            }, 250);
+        });
+
+        // Initialize view state
+        switchView('submit');
+
+    </script>
+</body>
+</html>

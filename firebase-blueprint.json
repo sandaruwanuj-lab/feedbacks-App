@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "Feedback": {
+      "title": "Feedback",
+      "description": "A session feedback submission including rating, session name, takeaways, and suggestions.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["good", "average", "poor"],
+          "description": "Rating category selected by the attendee"
+        },
+        "sessionName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Name of the session being reviewed"
+        },
+        "learningPoints": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Main takeaways entered by the attendee"
+        },
+        "suggestions": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Suggestions for improving future sessions"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Authenticated user UID of the submitter"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp recorded upon submission"
+        }
+      },
+      "required": [
+        "type",
+        "sessionName",
+        "learningPoints",
+        "suggestions",
+        "userId",
+        "timestamp"
+      ]
+    }
+  },
+  "firestore": {
+    "/feedbacks/{feedbackId}": {
+      "schema": {
+        "$ref": "#/entities/Feedback"
+      },
+      "description": "Stores attendee feedback submissions partitioned by sessionName and owner userId"
+    }
+  }
+}
